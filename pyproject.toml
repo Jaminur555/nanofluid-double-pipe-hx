@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nanofluid-hx"
+version = "0.1.0"
+description = "2D axisymmetric FVM thermal solver for turbulent nanofluid flow in a double-pipe heat exchanger"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "scipy>=1.10", "matplotlib>=3.7", "seaborn>=0.12"]
+
+[tool.setuptools.packages.find]
+include = ["nanofluid_hx*"]

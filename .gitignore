@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# packaging artifacts (created by pip install -e .)
+*.egg-info/
+
+# local only
+.claude/
+eff_nano_properties/
+*.pdf
+Project_structure.txt
