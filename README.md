@@ -27,7 +27,7 @@ pip install -e .
 ## Usage
 ```bash
 python scripts/run_single_case.py        # both flow arrangements, saves contours
-python scripts/run_parameter_sweep.py    # $Re \times \phi$ sweep, Nu & effectiveness
+python scripts/run_parameter_sweep.py    # Re x phi sweep, Nu & effectiveness
 pytest                                   # run the test suite
 ```
 
@@ -37,7 +37,7 @@ pytest                                   # run the test suite
 ![Parameter sweep](results/sweep_nu_effectiveness.png)
 
 ## Roadmap
-- [ ] k-epsilon turbulence model (interface reserved in `nanofluid_hx/turbulence/`)
+- [ ] k-&epsilon; turbulence model (interface reserved in `nanofluid_hx/turbulence/`)
 - [ ] Pressure-velocity coupling (velocity currently prescribed)
 - [ ] Temperature-dependent properties
 
