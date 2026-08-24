@@ -7,7 +7,7 @@ nanofluid flow in a double-pipe heat exchanger (parallel & counter flow).
 - Three zones: inner nanofluid pipe (0-13 mm), steel wall (13-15 mm), water annulus (15-25 mm)
 - 1/7<sup>th</sup> power-law velocity profile + mixing-length eddy diffusivity (k-&epsilon; reserved)
 - FVM energy equation, upwind convection, sparse direct solve
-- Outputs: temperature field, Nu, LMTD, overall U, effectiveness
+- Outputs: temperature field, Nu, LMTD, overall U, effectiveness ()
 
 ## Structure
 ```
