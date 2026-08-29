@@ -35,13 +35,13 @@ def build_and_solve_pressure_correction(mesh, u_star, v_star, aP_u, sumnb_u,
 
     for i in range(Nr):
         for j in range(Nz - 1):
-            denom = aP_u[i + 1] - sumnb_u[i, j + 1]
+            denom = aP_u[i, j + 1] - sumnb_u[i, j + 1]
             d_e[i, j] = mesh.A_e[i, j] / denom if denom > 1e-12 else 0.0
 
 
     for i in range(Nr - 1):
         for j in range(Nz):
-            denom = aP_v[i + 1] - sumnb_v[i, j + 1]
+            denom = aP_v[i + 1, j] - sumnb_v[i, j + 1]
             d_n[i, j] = mesh.A_n[i, j] / denom if denom > 1e-12 else 0.0
 
     A = lil_matrix((N_eq, N_eq))
@@ -55,8 +55,8 @@ def build_and_solve_pressure_correction(mesh, u_star, v_star, aP_u, sumnb_u,
 
             F_w = rho * u_star[i, j] * mesh.A_e[i, j]
             F_e = rho * u_star[i, j + 1] * mesh.A_e[i, j]
-            F_s = rho * u_star[i, j] * mesh.A_e[i, j]
-            F_n = rho * u_star[i + 1, j] * mesh.A_e[i, j]
+            F_s = rho * v_star[i, j] * mesh.A_e[i, j]
+            F_n = rho * v_star[i + 1, j] * mesh.A_e[i, j]
 
             residual       = (F_e - F_w) + (F_n - F_s) 
             mass_res[i, j] =  residual
@@ -104,7 +104,7 @@ def correct_fields(mesh, u_star, v_star, p, p_prime, d_e, d_n, alpha_p = 1.0):
     v_new = v_star.copy()
     for i in range(Nr - 1):
         for j in range (Nz):
-            v_new[i, j] += d_e[i - 1, j] * (p_prime[i - 1, j] - p_prime[i, j])
+            v_new[i, j] += d_n[i - 1, j] * (p_prime[i - 1, j] - p_prime[i, j])
 
     p_new = p + alpha_p * p_prime
     p_new -= p_new[:, -1:].mean()    # keep outle column ~0 as the reference

@@ -24,7 +24,7 @@ def mixing_length_viscosity(U, mesh, rho, mu_molecular):
     Nr, Nz = mesh.Nr, mesh.Nz
     u_c    = u_at_cell_centers(U, mesh)
 
-    du_dr = np.zeros(Nr, Nz)
+    du_dr = np.zeros((Nr, Nz))
     for i in range(Nr):
         if i == 0:
             # symetry axis: du/dr = 0 there; use one-sided estimate inward

@@ -22,7 +22,7 @@ def test_laminar_centerline_velocity_and_friction_factor(Re):
 
     mesh   = StaggeredPipeMesh(R=R, L=L, Nr=20, Nz=70, r_stretch=1.3)
     result = run_simplec(mesh, RHO, MU, U_in=U_mean, turbulence_model=None,
-                         max_outer_iter=800, mass_tok=1e-6, vel_tol=1e-6)
+                         max_outer_iter=800, mass_tol=1e-6, vel_tol=1e-6)
 
     assert result['history']['max_du'][-1] < 1e-3      # solution has settled down
 

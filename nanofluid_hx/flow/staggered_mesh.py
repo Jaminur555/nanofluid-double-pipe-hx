@@ -41,11 +41,11 @@ class StaggeredPipeMesh:
         self.A_s = np.zeros((Nr, Nz))   # constant-s axial face area at r_faces[i]
 
         for i in range(Nr):
-            r_s, r_n = self.r_faces[i], self.z_faces[i]
+            r_s, r_n = self.r_faces[i], self.z_faces[i + 1]
             for j in range(Nz):
                 dz = self.z_faces[j+1] - self.z_faces[j]
 
-                self.V[i, j]   = np.pi * (r_n **2 - r_s**2) * dz
+                self.v[i, j]   = np.pi * (r_n **2 - r_s**2) * dz
                 self.A_e[i, j] = np.pi * (r_n **2 - r_s**2)
                 self.A_n[i, j] = 2.0 * np.pi *r_n * dz
                 self.A_s[i, j] = 2.0 * np.pi *r_s * dz
@@ -70,4 +70,4 @@ class StaggeredPipeMesh:
 
         self.dr_v[1:Nr] = self.r_center[1:] - self.r_center[:-1]
         self.dr_v[0]    = self.r_center[0] - self.r_faces[0]
-        self.dr_v[Nr]   = self.r_center[Nr] - self.r_center[Nr -1]
+        self.dr_v[Nr]   = self.r_faces[Nr] - self.r_center[Nr -1]

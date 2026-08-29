@@ -95,7 +95,7 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
                 a_N    = mu_n * area_n / dr_n           
 
             a_S = 0.0
-            if i < Nr - 1:
+            if i > 0:
                 mu_s   = 0.5 * (mu_eff_cells[i, min(j, Nz - 1)] + mu_eff_cells[i - 1, min(j, Nz - 1)])
                 area_s = mesh.An_u_perlen[i] * dz_u_cv
                 dr_s   = mesh.r_center[i] - mesh.r_center[i - 1]
@@ -124,33 +124,33 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
                     a_P_wall = mu_wall * area_wall / dr_wall
                 a_P += a_P_wall
 
-                # Pressure-gradien source (SIMPLE/SIMPLEC): (p_west - p_east) * A
-                b_p += (p[i, j - 1] - p[i, j]) * A_ax
+            # Pressure-gradien source (SIMPLE/SIMPLEC): (p_west - p_east) * A
+            b_p += (p[i, j - 1] - p[i, j]) * A_ax
 
 
-                # IMPICIT under-relaxatio (Patankar)
-                a_P_relaxed = a_P / alpha_u
-                b_p += (1.0 - alpha_u) * a_P_relaxed * u[i, j]
+            # IMPICIT under-relaxatio (Patankar)
+            a_P_relaxed = a_P / alpha_u
+            b_p += (1.0 - alpha_u) * a_P_relaxed * u[i, j]
 
-                A[row, row] = a_P_relaxed
-                if j - 1 == 1:
-                    A[row, idx(i, jj - 1)] = -a_W
-                else:
-                    b_p += a_W * U_in            # inlet Dirichlet folded into RHS
+            A[row, row] = a_P_relaxed
+            if j - 1 >= 1:
+                A[row, idx(i, jj - 1)] = -a_W
+            else:
+                b_p += a_W * U_in            # inlet Dirichlet folded into RHS
 
-                if j + 1 <= Nz - 1:
-                    A[row, idx(i, jj + 1)] = -a_E
-                if i <= Nr - 1:
-                    A[row, idx(i + 1, jj)] = -a_N
-                if j + 1 <= Nz - 1:
-                    A[row, idx(i - 1, jj)] = -a_S
+            if j + 1 <= Nz - 1:
+                A[row, idx(i, jj + 1)] = -a_E
+            if i < Nr - 1:
+                A[row, idx(i + 1, jj)] = -a_N
+            if j + 1 <= Nz - 1:
+                A[row, idx(i - 1, jj)] = -a_S
 
-                B[row] = b_p
-                aP_u[i, j] = a_P_relaxed         # relaxed diagonal, for SIMPLEC's D-U
+            B[row] = b_p
+            aP_u[i, j] = a_P_relaxed         # relaxed diagonal, for SIMPLEC's D-U
 
 
         u_flat = spsolve(A.tocsr(), B)
-        u_new   = u_flat.copy() 
+        u_new   = use_wall_function.copy() 
 
         for i in range(Nr):
             for j in range(1, Nz):
@@ -287,6 +287,3 @@ def solve_v_momentum(mesh, u, v, p, rho, mu_eff_cells, alpha_v=0.7):
 
     return v_new, aP_v, sumnb_v
 
-
-
-    

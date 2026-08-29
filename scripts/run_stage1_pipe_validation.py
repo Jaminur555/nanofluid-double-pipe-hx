@@ -8,9 +8,9 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-from .flow.staggered_mesh import StaggeredPipeMesh
-from .flow.simple_solver  import run_simplec
-from .flow.eddy_viscosity import mixing_length_viscosity
+from naofluid_hx.flow.staggered_mesh import StaggeredPipeMesh
+from naofluid_hx.flow.simple_solver  import run_simplec
+from naofluid_hx.flow.eddy_viscosity import mixing_length_viscosity
 
 R   = 0.013
 RHO = 997.1
