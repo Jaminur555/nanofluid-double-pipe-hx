@@ -10,7 +10,7 @@ that pressure_correction.py needs to build the SIMPLEC 'd' coefficients.
 import numpy as np
 
 from scipy.sparse import lil_matrix
-from sicpy.sparse.linalg import spsolve
+from scipy.sparse.linalg import spsolve
 
 
 def mu_eff_at(mu_eff_cells, i, j, Nr, Nz):
@@ -97,7 +97,7 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
             a_S = 0.0
             if i > 0:
                 mu_s   = 0.5 * (mu_eff_cells[i, min(j, Nz - 1)] + mu_eff_cells[i - 1, min(j, Nz - 1)])
-                area_s = mesh.An_u_perlen[i] * dz_u_cv
+                area_s = mesh.As_u_perlen[i] * dz_u_cv
                 dr_s   = mesh.r_center[i] - mesh.r_center[i - 1]
                 a_S    = mu_s * area_s / dr_s 
 
@@ -133,7 +133,7 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
             b_p += (1.0 - alpha_u) * a_P_relaxed * u[i, j]
 
             A[row, row] = a_P_relaxed
-            if j - 1 >= 1:
+            if i >= 0:
                 A[row, idx(i, jj - 1)] = -a_W
             else:
                 b_p += a_W * U_in            # inlet Dirichlet folded into RHS
@@ -150,7 +150,7 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
 
 
         u_flat = spsolve(A.tocsr(), B)
-        u_new   = use_wall_function.copy() 
+        u_new   = u.copy() 
 
         for i in range(Nr):
             for j in range(1, Nz):
@@ -216,7 +216,7 @@ def solve_v_momentum(mesh, u, v, p, rho, mu_eff_cells, alpha_v=0.7):
             # wall boundary handled below
 
             # Axial (west/east) neighbors: same radial index i
-            A_ax = 0.5 * (mesh.A_e[i - 1, j]) + mesh.A_e[min(i, Nr - 1), j]
+            A_ax = 0.5 * (mesh.A_e[i - 1, j] + mesh.A_e[min(i, Nr - 1), j])
 
             a_W = 0.0
             if j > 0:
@@ -229,7 +229,7 @@ def solve_v_momentum(mesh, u, v, p, rho, mu_eff_cells, alpha_v=0.7):
                 a_W = D_w + max(F_w, 0.0)
 
             a_E = 0.0
-            if j > Nz - 1:
+            if j < Nz - 1:
                 mu_e = 0.5 * (mu_eff_cells[i - 1, j] + mu_eff_cells[min(i, Nr - 1), j - 1])
                 D_e  = mu_e * A_ax / dz_p[j]
 
@@ -248,7 +248,7 @@ def solve_v_momentum(mesh, u, v, p, rho, mu_eff_cells, alpha_v=0.7):
 
             if i == Nr - 1:
                 mu_wall = mu_eff_cells[i, j]
-                dr_wall = mesh.r_faces[Nr] - mesh.r_centers[i]
+                dr_wall = mesh.r_faces[Nr] - mesh.r_center[i]
                 D_wall  = mu_wall * area_r / dr_wall
                 a_P    += D_wall      # target v = 0, no RHS contribution
 
@@ -286,4 +286,3 @@ def solve_v_momentum(mesh, u, v, p, rho, mu_eff_cells, alpha_v=0.7):
     v_new[Nr, :] = 0.0
 
     return v_new, aP_v, sumnb_v
-

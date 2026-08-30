@@ -7,11 +7,11 @@ pressure_correction machinery itself, decoupled from any turbulence-closer uncer
 import numpy as np
 import pytest
 
-from .flow.staggered_mesh import StaggeredPipeMesh
-from .flow.simple_solver import run_simplec
+from nanofluid_hx.flow.staggered_mesh import StaggeredPipeMesh
+from nanofluid_hx.flow.simple_solver import run_simplec
 
 R   = 0.013
-RHO = 97.1
+RHO = 997.1
 MU  = 8.91e-4
 D   = 2 * R
 

@@ -14,7 +14,7 @@ RHO = 997.1
 MU = 8.91e-4
 D = 2 * R
 
-@pytest.mark.parametrize("Re,rel_tol", [(30000, 0.15), (60000, 0.15), (10000, 0.15)])
+@pytest.mark.parametrize("Re,rel_tol", [(30000, 0.15), (60000, 0.15), (100000, 0.15)])
 def test_turbulent_friction_factor_vs_blasius(Re, rel_tol):
     U_mean = Re * MU / (RHO * D)
     mesh   = StaggeredPipeMesh(R=R, L=L, Nr=25, Nz=80, r_stretch=1.6)

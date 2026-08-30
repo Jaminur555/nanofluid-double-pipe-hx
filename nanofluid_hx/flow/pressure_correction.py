@@ -41,7 +41,7 @@ def build_and_solve_pressure_correction(mesh, u_star, v_star, aP_u, sumnb_u,
 
     for i in range(Nr - 1):
         for j in range(Nz):
-            denom = aP_v[i + 1, j] - sumnb_v[i, j + 1]
+            denom = aP_v[i + 1, j] - sumnb_v[i + 1, j]
             d_n[i, j] = mesh.A_n[i, j] / denom if denom > 1e-12 else 0.0
 
     A = lil_matrix((N_eq, N_eq))
@@ -55,8 +55,8 @@ def build_and_solve_pressure_correction(mesh, u_star, v_star, aP_u, sumnb_u,
 
             F_w = rho * u_star[i, j] * mesh.A_e[i, j]
             F_e = rho * u_star[i, j + 1] * mesh.A_e[i, j]
-            F_s = rho * v_star[i, j] * mesh.A_e[i, j]
-            F_n = rho * v_star[i + 1, j] * mesh.A_e[i, j]
+            F_s = rho * v_star[i, j] * mesh.A_s[i, j]
+            F_n = rho * v_star[i + 1, j] * mesh.A_n[i, j]
 
             residual       = (F_e - F_w) + (F_n - F_s) 
             mass_res[i, j] =  residual
@@ -79,7 +79,7 @@ def build_and_solve_pressure_correction(mesh, u_star, v_star, aP_u, sumnb_u,
             A[row, idx(i, j + 1)] = -a_E
             if i > 0:
                 A[row, idx(i - 1, j)] = -a_S
-            if i > Nr - 1:
+            if i < Nr - 1:
                 A[row, idx(i + 1, j)] = -a_N
 
             B[row] = -residual       # drive mass imbalance to zero
@@ -102,7 +102,7 @@ def correct_fields(mesh, u_star, v_star, p, p_prime, d_e, d_n, alpha_p = 1.0):
             u_new[i, j] += d_e[i, j - 1] * (p_prime[i, j - 1] - p_prime[i, j])
 
     v_new = v_star.copy()
-    for i in range(Nr - 1):
+    for i in range(1, Nr - 1):
         for j in range (Nz):
             v_new[i, j] += d_n[i - 1, j] * (p_prime[i - 1, j] - p_prime[i, j])
 
