@@ -138,7 +138,7 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
             else:
                 b_p += a_W * U_in            # inlet Dirichlet folded into RHS
 
-            if j + 1 <= Nz - 1:
+            if i > 0:
                 A[row, idx(i, jj + 1)] = -a_E
             if i < Nr - 1:
                 A[row, idx(i + 1, jj)] = -a_N
@@ -149,17 +149,17 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
             aP_u[i, j] = a_P_relaxed         # relaxed diagonal, for SIMPLEC's D-U
 
 
-        u_flat = spsolve(A.tocsr(), B)
-        u_new   = u.copy() 
+    u_flat = spsolve(A.tocsr(), B)
+    u_new   = u.copy() 
 
-        for i in range(Nr):
-            for j in range(1, Nz):
-                u_new[i, j] = u_flat[idx(i, j - 1)]
+    for i in range(Nr):
+        for j in range(1, Nz):
+            u_new[i, j] = u_flat[idx(i, j - 1)]
 
-        u_new[:, 0] = U_in
-        u_new[:, Nz] = u_new[:, Nz - 1]            # outlet zero-gradient
+    u_new[:, 0] = U_in
+    u_new[:, Nz] = u_new[:, Nz - 1]            # outlet zero-gradient
 
-        return u_new, aP_u, sumnb_u 
+    return u_new, aP_u, sumnb_u 
             
 
 def solve_v_momentum(mesh, u, v, p, rho, mu_eff_cells, alpha_v=0.7):
@@ -230,7 +230,7 @@ def solve_v_momentum(mesh, u, v, p, rho, mu_eff_cells, alpha_v=0.7):
 
             a_E = 0.0
             if j < Nz - 1:
-                mu_e = 0.5 * (mu_eff_cells[i - 1, j] + mu_eff_cells[min(i, Nr - 1), j - 1])
+                mu_e = 0.5 * (mu_eff_cells[i - 1, j] + mu_eff_cells[min(i, Nr - 1), j])
                 D_e  = mu_e * A_ax / dz_p[j]
 
                 u_bulk_e = 0.5 * (u[i - 1, j + 1] + u[min(i, Nr - 1), j + 1])

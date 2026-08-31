@@ -6,7 +6,11 @@ import numpy as np
 
 KAPPA  = 0.41
 E_WALL = 9.8
+
 YPLUS_VISCOUS = 11.63      # intersection of u+ = Y+ and log law
+
+CMU = 0.9
+
 
 def wall_shear_stress(u_P, y_P, rho, mu_molecular, tol = 1e-10, max_iter = 50):
     """
@@ -48,3 +52,23 @@ def wall_coefficient(u_P, y_P, area_wall, rho, mu_molecular):
     tau_w = wall_shear_stress(u_P, y_P, rho, mu_molecular)
     u_mag = max(abs(u_P), 1e-8)
     return tau_w * area_wall / u_mag
+
+
+def wall_k_production(u_P, y_P, rho, mu_molecular):
+    """Equilibrium production of turbulence kinetic energy in near-wall cell"""
+
+    tau_W = wall_shear_stress(u_P, y_P, rho, mu_molecular)
+    u_tau = np.sqrt(tau_W/ rho) if tau_W > 0 else 0.0
+
+    if u_tau < 1e-12 or y_P <= 0.0:
+        return 0.0
+    return tau_W * u_tau / (KAPPA * y_P)
+
+
+def wall_epsilon(k_P, y_P):
+    """Equilibrium (prescribed, not transported) epsilon in the near-wall cell."""
+
+    k_P = max(k_P, 1e-12)
+    if y_P <= 0.0:
+        return 1e-12
+    return (CMU ** 0.75) *(k_P ** 1.5) / (KAPPA * y_P)
