@@ -35,7 +35,7 @@ class StaggeredPipeMesh:
         self.z_center = 0.5 * (self.z_faces[:-1] + self.z_faces[1:])
 
         # Pressure-cell Geometry
-        self.v   = np.zeros((Nr, Nz))   # Cell volume
+        self.V   = np.zeros((Nr, Nz))   # Cell volume
         self.A_e = np.zeros((Nr, Nz))   # constant-z axial face area, annular disk
         self.A_n = np.zeros((Nr, Nz))   # constant-r radial face area at r_faces[i+1]
         self.A_s = np.zeros((Nr, Nz))   # constant-s axial face area at r_faces[i]
@@ -45,7 +45,7 @@ class StaggeredPipeMesh:
             for j in range(Nz):
                 dz = self.z_faces[j+1] - self.z_faces[j]
 
-                self.v[i, j]   = np.pi * (r_n **2 - r_s**2) * dz
+                self.V[i, j]   = np.pi * (r_n **2 - r_s**2) * dz
                 self.A_e[i, j] = np.pi * (r_n **2 - r_s**2)
                 self.A_n[i, j] = 2.0 * np.pi *r_n * dz
                 self.A_s[i, j] = 2.0 * np.pi *r_s * dz

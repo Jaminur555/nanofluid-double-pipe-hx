@@ -9,7 +9,7 @@ E_WALL = 9.8
 
 YPLUS_VISCOUS = 11.63      # intersection of u+ = Y+ and log law
 
-CMU = 0.9
+CMU = 0.09
 
 
 def wall_shear_stress(u_P, y_P, rho, mu_molecular, tol = 1e-10, max_iter = 50):

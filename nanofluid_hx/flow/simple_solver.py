@@ -13,6 +13,7 @@ from .k_epsilon import (inlet_turbulence, compute_mu_t, compute_production,
 
 def run_simplec(mesh, rho, mu_molecular, U_in, turbulence_model = None,
                 alpha_u = 0.7, alpha_v=0.7, alpha_p=1.0,
+                alpha_k=0.6, alpha_eps=0.6,
                 max_outer_iter=500, mass_tol=1e-6, vel_tol=1e-6, verbose=False):
     """
     Returns a dict with the converged u, v, p fileds and convergence history.
@@ -62,7 +63,7 @@ def run_simplec(mesh, rho, mu_molecular, U_in, turbulence_model = None,
 
             k_new   = solve_k(mesh, u_new, v_new, rho, mu_molecular, mu_t, k, eps,
                               Gk, k_in, alpha_k = alpha_k)
-            eps_new = solve_eps(mesh, u_new, v_new, rho, mu_molecular, mu_t,
+            eps_new = solve_epsilon(mesh, u_new, v_new, rho, mu_molecular, mu_t,
                             k_new, eps, Gk, eps_in, alpha_eps=alpha_eps)
             mu_t    = compute_mu_t(k_new, eps_new, rho)
             k, eps  = k_new, eps_new

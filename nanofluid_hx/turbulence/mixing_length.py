@@ -2,13 +2,13 @@ import numpy as np
 
 from ..properties import MaterialProperties
 from ..mesh import AxisymmetricMesh
-from .base import TurbulenceModel
 
 
-class FluidDynamics(TurbulenceModel):
+class FluidDynamics:
     """
-    Simplified closure: 1/7-power-law velocity + mixing-length eddy diffusivity.
-    Stand-in for the future k-epsilon model (see kepsilon.py).
+    Legacy fast-approximate closure: prescribed 1/7-power-law velocity +
+    mixing-length eddy diffusivity. Not the paper's methodology -- the real
+    solver (SIMPLEC + standard k-epsilon) lives in nanofluid_hx.flow.
     """
     name = "mixing_length"
 

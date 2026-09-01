@@ -133,16 +133,15 @@ def solve_u_momentum(mesh, u, v, p, rho, mu_eff_cells, U_in, alpha_u=0.7,
             b_p += (1.0 - alpha_u) * a_P_relaxed * u[i, j]
 
             A[row, row] = a_P_relaxed
-            if i >= 0:
+            if j - 1 >= 1:
                 A[row, idx(i, jj - 1)] = -a_W
             else:
                 b_p += a_W * U_in            # inlet Dirichlet folded into RHS
-
-            if i > 0:
+            if j + 1 <= Nz - 1:
                 A[row, idx(i, jj + 1)] = -a_E
             if i < Nr - 1:
                 A[row, idx(i + 1, jj)] = -a_N
-            if j + 1 <= Nz - 1:
+            if i > 0:
                 A[row, idx(i - 1, jj)] = -a_S
 
             B[row] = b_p

@@ -5,13 +5,13 @@ import pytest
 from nanofluid_hx.flow.staggered_mesh import StaggeredPipeMesh
 from nanofluid_hx.flow.simple_solver import run_simplec
 
-R, L = 0.13, 2.0
+R, L = 0.013, 2.0
 RHO  = 997.1
 MU   = 8.91e-4
 D    = 2 * R
 
 
-@pytest.mark.parametrize("Re,rel_tol", [(30000, 1.0), (60000, 0.10), (100000, 0.1)])
+@pytest.mark.parametrize("Re,rel_tol", [(30000, 0.10), (60000, 0.10), (100000, 0.1)])
 def test_kepsilon_friction_factor_vs_blasius(Re, rel_tol):
     U_mean = Re * MU / (RHO * D)
     mesh   = StaggeredPipeMesh(R=R, L=L, Nr=20, Nz=60, r_stretch=1.6)
