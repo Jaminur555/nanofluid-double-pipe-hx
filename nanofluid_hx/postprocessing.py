@@ -26,8 +26,11 @@ def evaluate_case(mesh, fd, T, parallel_flow=True, T_hot_in=350.0, T_cold_in=285
     inner = slice(0, mesh.Nr_inner)
     outer = slice(mesh.Nr_inner + mesh.Nr_wall, mesh.Nr)
 
-    A_in,  u_in  = mesh.A_e[inner, 0], fd.u[inner]
-    A_out, u_out = mesh.A_e[outer, 0], fd.u[outer]
+    # Weights from the outlet face column of the (parallel-oriented) face
+    # velocities: the staggered u-nodes land exactly on the thermal z-faces.
+    u_in  = np.abs(fd.u_face[inner, -1])
+    u_out = np.abs(fd.u_face[outer, -1])
+    A_in, A_out = mesh.A_e[inner, -1], mesh.A_e[outer, -1]
 
     m_nf = mass_flow_rate(pi.rho_nf, u_in, A_in)
     m_f  = mass_flow_rate(po.rho_f,  u_out, A_out)

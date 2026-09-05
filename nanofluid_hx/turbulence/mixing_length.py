@@ -18,9 +18,9 @@ class FluidDynamics:
         
         self.Pr_t = 0.85                # Turbulent Prandtl Number
 
-        # Initialize profiles
-        self.u     = np.zeros(mesh.Nr)  # Axial velocity profile (r-denpendent) 
-        self.k_eff = np.zeros(mesh.Nr)  # Effective thermal conductivity profile (r-dependent)
+        # Initialize profiles (1-D internals; broadcast to 2-D views at the end)
+        self.u         = np.zeros(mesh.Nr)  # Axial velocity profile (r-dependent)
+        self.k_eff_1d  = np.zeros(mesh.Nr)  # Effective thermal conductivity profile (r-dependent)
 
         self.compute(mesh, props_inner, props_outer, Re_inner, Re_outer)
 
@@ -39,6 +39,12 @@ class FluidDynamics:
 
         self.compute_velocity_profile()
         self.compute_turbulent_conductivity()
+
+        # 2-D views for the thermal solver (fields are parallel-oriented:
+        # every stream +z, entrance at z=0; consumers handle arrangement).
+        # Staggered u-nodes land exactly on the thermal mesh z-faces.
+        self.u_face = np.repeat(self.u[:, None], mesh.Nz + 1, axis=1)      # (Nr, Nz+1)
+        self.k_eff  = np.repeat(self.k_eff_1d[:, None], mesh.Nz, axis=1)   # (Nr, Nz)
 
     def compute_velocity_profile(self):
         """Compute Turbulent velocity profile using the 1/7th power law"""
@@ -98,13 +104,13 @@ class FluidDynamics:
                 # Wall distance (distance to r1)
                 y    = self.mesh.r1 - r
                 l_m  = min(0.41 * y, 0.085 * self.mesh.r1)
-                nu_t = l_m ** 2 * abs(du_dr[i]) 
+                nu_t = l_m ** 2 * abs(du_dr[i])
                 k_t  = (self.pi.rho_nf * self.pi.cp_nf * nu_t) / self.Pr_t
 
-                self.k_eff[i] = self.pi.k_nf + k_t
+                self.k_eff_1d[i] = self.pi.k_nf + k_t
 
             elif zone == 1:            # Steel Wall
-                self.k_eff[i] = self.pi.k_s
+                self.k_eff_1d[i] = self.pi.k_s
 
             elif zone == 2:            # Outer Fluid
                 # Wall distance (distance to nearest wall, re or r3)
@@ -112,10 +118,10 @@ class FluidDynamics:
                 half_width = 0.5 * (self.mesh.r3 - self.mesh.r2)
 
                 l_m  = min(0.41 * y, 0.085 * half_width)
-                nu_t = l_m ** 2 * abs(du_dr[i]) 
+                nu_t = l_m ** 2 * abs(du_dr[i])
                 k_t  = (self.po.rho_f * self.po.cp_f * nu_t) / self.Pr_t
 
-                self.k_eff[i] = self.po.k_f + k_t   
+                self.k_eff_1d[i] = self.po.k_f + k_t
 
 
 # Verification test script

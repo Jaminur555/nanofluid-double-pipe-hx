@@ -1,18 +1,21 @@
-"""Legacy turbulence closures for the prescribed-velocity thermal solver.
+"""Turbulence closures feeding the thermal solver (the _MODELS registry).
 
 Available models:
-    "mixing_length" : 1/7-power-law velocity + mixing-length eddy diffusivity
-                      (fast approximate mode, not the paper's methodology)
-
-The real solver (SIMPLEC + standard k-epsilon on a staggered grid) lives in
-nanofluid_hx.flow.
+    "mixing_length"      : 1/7-power-law velocity + mixing-length eddy
+                           diffusivity (fast approximate mode, not the
+                           paper's methodology)
+    "simplec_k_epsilon"  : the paper's methodology -- SIMPLEC + standard
+                           k-epsilon on node-identical staggered sub-meshes
+                           (nanofluid_hx.flow.coupling), zero interpolation
 """
 
 from .mixing_length import FluidDynamics
+from ..flow.coupling import SimplecFlow
 
 
 _MODELS = {
     "mixing_length": FluidDynamics,
+    "simplec_k_epsilon": SimplecFlow,
 }
 
 
