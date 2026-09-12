@@ -8,13 +8,9 @@ import seaborn as sns
 
 
 def plot_temperature_field(mesh, T_field, parallel_flow=True):
-    """
-    Plots the 2D axisymmetruc temperature distribution.
-    """
-
+    """Plot the 2D axisymmetric temperature distribution."""
     sns.set_theme(style = 'white', context='paper', font_scale=1.15)
 
-    # Creae 2D coordinate grids for plotting
     Z, R = np.meshgrid(mesh.z_center, mesh.r_center)
 
     fig, ax = plt.subplots(figsize=(12, 5.5), dpi = 120)
@@ -26,7 +22,7 @@ def plot_temperature_field(mesh, T_field, parallel_flow=True):
     cbar.set_label('Temperature (K)', fontsize = 12, rotation = 270, labelpad = 15)
     cbar.ax.tick_params(labelsize = 10)
 
-    # Draw physical domain lines (Interfaces at r = 13mm, and r = 15mm)
+    # Interfaces at r = 13 mm and r = 15 mm
     innter_interface = ax.axhline(13, color = 'black', linewidth = 1.5, linestyle = '-', alpha = 0.5, label = "Inner Wall Interfaces")
     outer_interface  = ax.axhline(15, color = 'black', linewidth = 1.5, linestyle = '--', alpha = 0.5, label = "Outer Wall Interfaces")
 

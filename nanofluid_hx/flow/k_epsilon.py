@@ -1,29 +1,14 @@
+"""Standard k-epsilon transport equations, solved segregated with lagged sources.
+
+mu_t = Cmu * rho * k^2 / eps. Near-wall rows use equilibrium wall functions:
+k gets wall-function production, epsilon is prescribed (wall_epsilon), not
+transported.
 """
-Standard k-epsilon turbulence transport equations (paper's Eqs. 4-6), solved on
-the same cell-centered locations as pressure and temperature.
-
-    k:   div(rho*k*u)   = div((mu + mu_t/sigma_k)   grad k)   + Gk - rho*eps
-    eps: div(rho*eps*u) = div((mu + mu_t/sigma_eps) grad eps) + C1eps*(eps/k)*Gk
-                                                                - C2eps*rho*eps^2/k
-    mu_t = Cmu * rho * k^2 / eps
-
-Solved segregated (k then eps, each outer SIMPLEC iteration) with lagged
-source-term linearization. Near-wall treatment: standard equilibrium wall
-functions paired with wall_function.py's log-law momentum treatment -- k is
-transported into the wall row with wall-function production, while epsilon is
-NOT solved there: it is prescribed from the current k (wall_epsilon).
-
-Annulus support (Stage 3): every wall row (north always, south when
-mesh.south_is_wall) gets the same wall-function treatment.
-"""
-
-
 import numpy as np
-
-from scipy.sparse import lil_matrix
+from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve
 
-from .wall_function import wall_k_production, wall_epsilon
+from .wall_function import wall_k_production_row, wall_epsilon_row
 
 
 CMU = 0.09
@@ -67,35 +52,24 @@ def wall_distance(mesh, i):
 
 
 def compute_production(u, mesh, mu_t, rho, mu_molecular):
-    """
-    Gk at every cell center: mu_t*(du/dr)^2, EXCEPT wall rows, where the true
-    near-wall gradient is not mesh-resolved and the equilibrium wall-function
-    production is used instead.
-    """
+    """Gk at cell centers: mu_t*(du/dr)^2, wall rows use wall-function production instead."""
     Nr, Nz = mesh.Nr, mesh.Nz
     u_c    = u_at_cell_centers(u)
 
     du_dr = np.zeros((Nr, Nz))
-    for i in range(Nr):
-        if i == 0:
-            if mesh.south_is_wall:
-                dr          = mesh.r_center[1] - mesh.r_faces[0]
-                du_dr[i, :] = (u_c[1, :] - 0.0) / dr
-            else:
-                du_dr[i, :] = 0.0                # symmetry axis
-        elif i == Nr - 1:
-            dr          = mesh.R - mesh.r_center[i - 1]
-            du_dr[i, :] = (0.0 - u_c[i - 1, :]) / dr
-        else:
-            dr          = mesh.r_center[i + 1] - mesh.r_center[i - 1]
-            du_dr[i, :] = (u_c[i + 1, :] - u_c[i - 1, :]) / dr
+    if mesh.south_is_wall:
+        du_dr[0, :] = (u_c[1, :] - 0.0) / (mesh.r_center[1] - mesh.r_faces[0])
+    else:
+        du_dr[0, :] = 0.0                    # symmetry axis
+    du_dr[Nr - 1, :] = (0.0 - u_c[Nr - 2, :]) / (mesh.R - mesh.r_center[Nr - 2])
+    du_dr[1:Nr - 1, :] = ((u_c[2:, :] - u_c[:-2, :])
+                          / (mesh.r_center[2:] - mesh.r_center[:-2])[:, None])
 
     Gk = mu_t * du_dr ** 2
 
     for i_wall in wall_rows(mesh):
         y_P = wall_distance(mesh, i_wall)
-        for j in range(Nz):
-            Gk[i_wall, j] = wall_k_production(u_c[i_wall, j], y_P, rho, mu_molecular)
+        Gk[i_wall, :] = wall_k_production_row(u_c[i_wall, :], y_P, rho, mu_molecular)
 
     return Gk
 
@@ -103,94 +77,76 @@ def compute_production(u, mesh, mu_t, rho, mu_molecular):
 def assemble_and_solve(mesh, u, v, rho, gamma_cells, source_explicit,
                        sink_coefficient, phi_in, dirichlet_rows=None,
                        dirichlet_values=None):
-    """
-    Generic cell-centered convection-diffusion-source solve using the staggered
-    mesh's EXACT face velocities (no re-interpolation):
+    """Generic cell-centered convection-diffusion-source solve using the staggered
+    mesh's exact face velocities (no re-interpolation):
 
         a_P * phi_P = sum(a_nb * phi_nb) + source_explicit * V
-        a_P also includes + sink_coefficient * V   (linearized destruction)
+        a_P also includes + sink_coefficient * V (linearized destruction).
 
-    dirichlet_rows / dirichlet_values: optional fixed-value override for the
-    given wall rows (used for epsilon).
+    dirichlet_rows / dirichlet_values: fixed-value override for given wall rows.
     """
     Nr, Nz = mesh.Nr, mesh.Nz
-    N      = Nr * Nz
 
-    def idx(i, j):
-        return i * Nz + j
+    F_w = rho * u[:, :-1] * mesh.A_e
+    F_e = rho * u[:, 1:] * mesh.A_e
+    F_s = rho * v[:-1, :] * mesh.A_s
+    F_n = rho * v[1:, :] * mesh.A_n
 
-    A = lil_matrix((N, N))
-    B = np.zeros(N)
+    # Upwind convection + central diffusion; gamma averaged onto faces.
+    gamma_w = 0.5 * (gamma_cells[:, 1:] + gamma_cells[:, :-1])
+    dz_cc = (mesh.z_center[1:] - mesh.z_center[:-1])[None, :]
 
-    for i in range(Nr):
-        for j in range(Nz):
-            row = idx(i, j)
+    a_W = np.zeros((Nr, Nz))
+    a_W[:, 1:] = (gamma_w * mesh.A_e[:, 1:] / dz_cc
+                  + np.maximum(F_w[:, 1:], 0.0))
+    dz_in = mesh.z_center[0] - mesh.z_faces[0]          # half-cell to inlet
+    D_w0 = gamma_cells[:, 0] * mesh.A_e[:, 0] / dz_in
+    a_W[:, 0] = D_w0 + np.maximum(F_w[:, 0], 0.0)
 
-            if dirichlet_rows is not None and i in dirichlet_rows:
-                A[row, row] = 1.0
-                B[row]      = dirichlet_values[i, j]
-                continue
+    a_E = np.zeros((Nr, Nz))
+    a_E[:, :-1] = (gamma_w * mesh.A_e[:, :-1] / dz_cc
+                   + np.maximum(-F_e[:, :-1], 0.0))
 
-            F_w = rho * u[i, j] * mesh.A_e[i, j]
-            F_e = rho * u[i, j + 1] * mesh.A_e[i, j]
-            F_s = rho * v[i, j] * mesh.A_s[i, j] if i > 0 else 0.0
-            F_n = rho * v[i + 1, j] * mesh.A_n[i, j] if i < Nr - 1 else 0.0
+    gamma_sn = 0.5 * (gamma_cells[1:, :] + gamma_cells[:-1, :])
+    dr_cc = (mesh.r_center[1:] - mesh.r_center[:-1])[:, None]
+    a_S = np.zeros((Nr, Nz))
+    a_S[1:, :] = (gamma_sn * mesh.A_s[1:, :] / dr_cc
+                  + np.maximum(F_s[1:, :], 0.0))
+    a_N = np.zeros((Nr, Nz))
+    a_N[:-1, :] = (gamma_sn * mesh.A_n[:-1, :] / dr_cc
+                   + np.maximum(-F_n[:-1, :], 0.0))
+    # i = 0 south boundary: symmetry axis (pipe) or south wall (annulus) --
+    # zero diffusive flux for k; epsilon rows are Dirichlet-overridden.
 
-            a_W = 0.0
-            if j > 0:
-                gamma_w = 0.5 * (gamma_cells[i, j] + gamma_cells[i, j - 1])
-                dz_w    = mesh.z_center[j] - mesh.z_center[j - 1]
-                D_w     = gamma_w * mesh.A_e[i, j] / dz_w
-                a_W     = D_w + max(F_w, 0.0)
-            else:
-                dz_w = mesh.z_center[0] - mesh.z_faces[0]   # half-cell to inlet
-                D_w  = gamma_cells[i, 0] * mesh.A_e[i, 0] / dz_w
-                a_W  = D_w + max(F_w, 0.0)
+    a_P = a_W + a_E + a_S + a_N
+    a_P += sink_coefficient * mesh.V
 
-            a_E = 0.0
-            if j < Nz - 1:
-                gamma_e = 0.5 * (gamma_cells[i, j] + gamma_cells[i, j + 1])
-                dz_e    = mesh.z_center[j + 1] - mesh.z_center[j]
-                D_e     = gamma_e * mesh.A_e[i, j] / dz_e
-                a_E     = D_e + max(-F_e, 0.0)
+    b = source_explicit * mesh.V
+    b[:, 0] += a_W[:, 0] * phi_in
 
-            a_S = 0.0
-            if i > 0:
-                gamma_s = 0.5 * (gamma_cells[i, j] + gamma_cells[i - 1, j])
-                dr_s    = mesh.r_center[i] - mesh.r_center[i - 1]
-                D_s     = gamma_s * mesh.A_s[i, j] / dr_s
-                a_S     = D_s + max(F_s, 0.0)
-            # else: symmetry axis (pipe) or south wall (annulus):
-            # zero diffusive flux for k; epsilon row is Dirichlet-overridden.
+    is_dir = np.zeros(Nr, dtype=bool)
+    if dirichlet_rows is not None:
+        is_dir[list(dirichlet_rows)] = True
+        b[is_dir, :] = dirichlet_values[is_dir, :]
+    solve = np.broadcast_to(~is_dir[:, None], (Nr, Nz))
 
-            a_N = 0.0
-            if i < Nr - 1:
-                gamma_n = 0.5 * (gamma_cells[i, j] + gamma_cells[i + 1, j])
-                dr_n    = mesh.r_center[i + 1] - mesh.r_center[i]
-                D_n     = gamma_n * mesh.A_n[i, j] / dr_n
-                a_N     = D_n + max(-F_n, 0.0)
-            # else: north wall -- zero flux (k) / Dirichlet (eps)
+    diag = np.where(a_P > 1e-12, a_P, 1.0)
+    diag[is_dir, :] = 1.0
 
-            a_P = a_W + a_E + a_S + a_N
-            a_P += sink_coefficient[i, j] * mesh.V[i, j]
+    # Sparse system in COO form: row = i*Nz + j
+    row = np.arange(Nr)[:, None] * Nz + np.arange(Nz)[None, :]
+    r_w = row[:, 1:][solve[:, 1:]]
+    r_e = row[:, :-1][solve[:, :-1]]
+    r_s = row[1:, :][solve[1:, :]]
+    r_n = row[:-1, :][solve[:-1, :]]
+    rows = np.concatenate([row.ravel(), r_w, r_e, r_s, r_n])
+    cols = np.concatenate([row.ravel(), r_w - 1, r_e + 1, r_s - Nz, r_n + Nz])
+    data = np.concatenate([diag.ravel(),
+                           -a_W[:, 1:][solve[:, 1:]], -a_E[:, :-1][solve[:, :-1]],
+                           -a_S[1:, :][solve[1:, :]], -a_N[:-1, :][solve[:-1, :]]])
+    A = coo_matrix((data, (rows, cols)), shape=(Nr * Nz, Nr * Nz)).tocsr()
 
-            b_p = source_explicit[i, j] * mesh.V[i, j]
-            if j == 0:
-                b_p += a_W * phi_in
-
-            A[row, row] = a_P if a_P > 1e-12 else 1.0
-            if j > 0:
-                A[row, idx(i, j - 1)] = -a_W
-            if j < Nz - 1:
-                A[row, idx(i, j + 1)] = -a_E
-            if i > 0:
-                A[row, idx(i - 1, j)] = -a_S
-            if i < Nr - 1:
-                A[row, idx(i + 1, j)] = -a_N
-
-            B[row] = b_p
-
-    phi_flat = spsolve(A.tocsr(), B)
+    phi_flat = spsolve(A, b.ravel())
     return phi_flat.reshape((Nr, Nz))
 
 
@@ -219,12 +175,10 @@ def solve_epsilon(mesh, u, v, rho, mu_molecular, mu_t, k_new, eps_old, Gk,
     sink_coefficient = C2EPS * rho * eps_old_safe / k_new_safe
     source_explicit  = C1EPS * (eps_old_safe / k_new_safe) * Gk
 
-    # Prescribed (not transported) epsilon at every wall row
     dirichlet_values = np.zeros((Nr, Nz))
     for i_wall in wall_rows(mesh):
         y_P = wall_distance(mesh, i_wall)
-        for j in range(Nz):
-            dirichlet_values[i_wall, j] = wall_epsilon(k_new[i_wall, j], y_P)
+        dirichlet_values[i_wall, :] = wall_epsilon_row(k_new[i_wall, :], y_P)
 
     eps_star = assemble_and_solve(mesh, u, v, rho, gamma_cells, source_explicit,
                                   sink_coefficient, eps_in,

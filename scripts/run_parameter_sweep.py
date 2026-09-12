@@ -1,8 +1,8 @@
-"""5x5x2 parameter sweep (Re x phi x arrangement) with the chosen flow model.
+"""6x5x2 parameter sweep (Re x phi x arrangement) with the chosen flow model.
 
 The flow provider is ARRANGEMENT-AGNOSTIC (fields always parallel-oriented),
 so ONE flow solve per (Re, phi) feeds both the parallel and counter thermal
-solves -- half the flow-solve cost of the old script.
+solves.
 """
 import argparse
 
@@ -34,7 +34,7 @@ def make_provider(model, mesh, phi, Re, max_outer_iter=300):
 
 
 def analyze_case(fd, parallel_flow):
-    """Thermal solve from pre-computed (cached) flow fields; (Nu_avg, eff)."""
+    """Thermal solve from pre-computed (cached) flow fields; (Nu_nf, eff)."""
     mesh = fd.mesh
     solver = ThermalSolver(mesh, fd, parallel_flow=parallel_flow)
     solver.assemble_system()
@@ -42,25 +42,25 @@ def analyze_case(fd, parallel_flow):
 
     m = evaluate_case(mesh, fd, T, parallel_flow=parallel_flow,
                       T_hot_in=solver.T_hot_in, T_cold_in=solver.T_cold_in)
-    return m["Nu_avg"], m["effectiveness"]
+    return m["Nu_nf"], m["effectiveness"]
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Re x phi x arrangement sweep")
     parser.add_argument("--model", default="simplec_k_epsilon",
-                        choices=["simplec_k_epsilon", "mixing_length"])
+                        choices=["simplec_k_epsilon"])
     parser.add_argument("--smoke", action="store_true",
                         help="1x1 subset (Re=30000, phi=0.05) for a quick check")
     parser.add_argument("--max-iter", type=int, default=300,
                         help="SIMPLEC outer iterations (bump to 500 at high Re)")
     args = parser.parse_args()
 
-    Re_list  = [30000] if args.smoke else [10000, 20000, 40000, 80000, 100000]
+    Re_list  = [30000] if args.smoke else [10000, 20000, 40000, 60000, 80000,
+                                            100000]
     phi_list = [0.05] if args.smoke else [0.0, 0.025, 0.05, 0.075, 0.1]
 
     mesh = AxisymmetricMesh()                     # built ONCE, reused everywhere
 
-    # Store results
     result = {
         'parallel': {phi: {'Re': [], 'Nu': [], 'eff': []} for phi in phi_list},
         'counter':  {phi: {'Re': [], 'Nu': [], 'eff': []} for phi in phi_list}
@@ -83,7 +83,6 @@ if __name__ == "__main__":
 
     colors = ['blue', 'green', 'orange', 'red', 'purple']
 
-    # Nu_parallel
     for idx, phi in enumerate(phi_list):
         ax[0, 0].plot(result['parallel'][phi]['Re'], result['parallel'][phi]['Nu'],
                       'o-', color=colors[idx], label=f'phi: {phi * 100:.1f}%')
@@ -94,7 +93,6 @@ if __name__ == "__main__":
     ax[0, 0].grid(True, alpha=0.3)
     ax[0, 0].legend()
 
-    # Efficiency parallel
     for idx, phi in enumerate(phi_list):
         ax[0, 1].plot(result['parallel'][phi]['Re'], result['parallel'][phi]['eff'],
                       '-o', color=colors[idx], label=f'phi = {phi*100:.1f}%')
@@ -105,7 +103,6 @@ if __name__ == "__main__":
     ax[0, 1].grid(True, alpha=0.3)
     ax[0, 1].legend()
 
-    # Nu Counter
     for idx, phi in enumerate(phi_list):
         ax[1, 0].plot(result['counter'][phi]['Re'], result['counter'][phi]['Nu'],
                       '-o', color=colors[idx], label=f'phi = {phi*100:.1f}%')
@@ -116,7 +113,6 @@ if __name__ == "__main__":
     ax[1, 0].grid(True)
     ax[1, 0].legend()
 
-    # Subplot (1,1): Fig 10 - Efficiency Counter
     for idx, phi in enumerate(phi_list):
         ax[1, 1].plot(result['counter'][phi]['Re'], result['counter'][phi]['eff'],
                       '-o', color=colors[idx], label=f'phi = {phi*100:.1f}%')

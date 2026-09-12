@@ -8,7 +8,7 @@ from nanofluid_hx.postprocessing import evaluate_case
 def solved():
     mesh = AxisymmetricMesh(Nr_inner=10, Nr_wall=4, Nr_outer=10, Nz=60)
     pi, po = MaterialProperties(0.05), MaterialProperties(0.0)
-    fd = get_model("mixing_length")(mesh, pi, po, 20000, 20000)
+    fd = get_model("simplec_k_epsilon")(mesh, pi, po, 20000, 20000)
     solver = ThermalSolver(mesh, fd, parallel_flow=True)
     solver.assemble_system()
     return mesh, fd, solver, solver.solve()
@@ -30,7 +30,7 @@ def test_outlet_temps_bounded(solved):
 def solved_counter():
     mesh = AxisymmetricMesh(Nr_inner=10, Nr_wall=4, Nr_outer=10, Nz=60)
     pi, po = MaterialProperties(0.05), MaterialProperties(0.0)
-    fd = get_model("mixing_length")(mesh, pi, po, 20000, 20000)
+    fd = get_model("simplec_k_epsilon")(mesh, pi, po, 20000, 20000)
     solver = ThermalSolver(mesh, fd, parallel_flow=False)
     solver.assemble_system()
     return mesh, fd, solver, solver.solve()

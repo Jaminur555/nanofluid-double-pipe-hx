@@ -1,22 +1,10 @@
-"""
-Staggered axisymmetric mesh for ONE fluid zone: r in [r_min, R], z in [0, L].
+"""Staggered axisymmetric mesh for ONE fluid zone: r in [r_min, R], z in [0, L].
 
-Layout (Patankar convention):
-    - Pressure p, and any scalar (T, k, eps), live at CELL CENTERS: (Nr, Nz)
-    - Axial velocity u lives on constant-z FACES, same radial index as
-      pressure cells: shape (Nr, Nz + 1). u[i, j] sits at (r_center[i], z_faces[j]).
-    - Radial velocity v lives on constant-r FACES, same axial index as
-      pressure cells: shape (Nr + 1, Nz). v[i, j] sits at (r_faces[i], z_center[j]).
-
-r_min = 0  -> inner pipe: the south boundary (i = 0) is the SYMMETRY AXIS
-              (zero radial flux, v = 0).
-r_min > 0  -> annulus: the south boundary is a solid WALL (no-slip), exactly
-              like the north boundary; mesh.south_is_wall = True.
-
-from_faces() builds a mesh that SHARES its face coordinates with the collocated
-thermal mesh (AxisymmetricMesh) -- then the staggered u-nodes land exactly on
-the thermal mesh's z-faces and cell-centered fields land on thermal cell
-centers, so coupling flow to energy (Stage 3) needs NO interpolation.
+Layout (Patankar): p and scalars at cell centers (Nr, Nz); u on constant-z
+faces, shape (Nr, Nz+1); v on constant-r faces, shape (Nr+1, Nz). r_min = 0
+-> south boundary is the symmetry axis; r_min > 0 -> solid wall
+(south_is_wall = True). from_faces() shares coordinates with the thermal
+mesh so coupled fields need no interpolation.
 """
 import numpy as np
 
@@ -44,8 +32,7 @@ class StaggeredPipeMesh:
 
     @classmethod
     def from_faces(cls, r_faces, z_faces, south_is_wall=False):
-        """Build from explicit face coordinates (use the thermal mesh's own
-        faces in Stage 3 so the two grids are node-identical)."""
+        """Build from explicit face coordinates (e.g. the thermal mesh's own faces)."""
         mesh = cls.__new__(cls)
         mesh.south_is_wall = south_is_wall
         mesh.r_min = float(r_faces[0])
@@ -69,25 +56,17 @@ class StaggeredPipeMesh:
         self.Dh = 2.0 * (R - self.r_min) if self.r_min > 0 else 2.0 * R
 
         # ---- Pressure-cell geometry ----
-        self.V   = np.zeros((Nr, Nz))   # cell volume
-        self.A_e = np.zeros((Nr, Nz))   # constant-z (axial) face area, annular disc
-        self.A_n = np.zeros((Nr, Nz))   # constant-r face area at r_faces[i+1]
-        self.A_s = np.zeros((Nr, Nz))   # constant-r face area at r_faces[i]
-
-        for i in range(Nr):
-            r_s, r_n = r_faces[i], r_faces[i + 1]
-            for j in range(Nz):
-                dz = z_faces[j + 1] - z_faces[j]
-                self.V[i, j]   = np.pi * (r_n ** 2 - r_s ** 2) * dz
-                self.A_e[i, j] = np.pi * (r_n ** 2 - r_s ** 2)
-                self.A_n[i, j] = 2.0 * np.pi * r_n * dz
-                self.A_s[i, j] = 2.0 * np.pi * r_s * dz
+        r_s, r_n = r_faces[:-1], r_faces[1:]
+        dz = z_faces[1:] - z_faces[:-1]
+        annular = np.pi * (r_n ** 2 - r_s ** 2)            # (Nr,)
+        self.V   = annular[:, None] * dz[None, :]          # (Nr, Nz)
+        self.A_e = annular[:, None] * np.ones_like(dz)[None, :]
+        self.A_n = (2.0 * np.pi * r_n[:, None] * dz[None, :])
+        self.A_s = (2.0 * np.pi * r_s[:, None] * dz[None, :])
 
         # ---- u-node geometry (axial velocity, at z_faces) ----
         self.A_e_u = self.A_e[:, 0].copy()          # (Nr,) same for every j
-        r_n = r_faces[1:]
-        r_s = r_faces[:-1]
-        self.An_u_perlen = 2.0 * np.pi * r_n         # per unit dz -> * dz_u
+        self.An_u_perlen = 2.0 * np.pi * r_n        # per unit dz -> * dz_u
         self.As_u_perlen = 2.0 * np.pi * r_s
 
         # ---- v-node geometry (radial velocity, at r_faces) ----

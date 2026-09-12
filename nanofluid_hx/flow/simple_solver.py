@@ -1,8 +1,5 @@
-"""
-Outer SIMPLEC iteration: momentum predictor -> pressure correction ->
-field correction -> (optional) turbulence update -> repeat until the mass
-residual and velocity change both fall below tolerance.
-"""
+"""Outer SIMPLEC loop: momentum predictor -> pressure correction -> field
+correction -> turbulence update, until mass and velocity tolerances are met."""
 import numpy as np
 
 from .momentum import solve_u_momentum, solve_v_momentum
@@ -15,15 +12,11 @@ def run_simplec(mesh, rho, mu_molecular, U_in, turbulence_model=None,
                 alpha_u=0.7, alpha_v=0.7, alpha_p=1.0,
                 alpha_k=0.6, alpha_eps=0.6,
                 max_outer_iter=500, mass_tol=1e-6, vel_tol=1e-6, verbose=False):
-    """
-    turbulence_model:
-        None        -> laminar (mu_eff = mu_molecular everywhere)
-        a callable(u, mesh, rho, mu_molecular) -> (mu_eff, mu_t), e.g.
-            eddy_viscosity.mixing_length_viscosity
-        "k_epsilon" -> standard k-epsilon (k_epsilon.py)
+    """Solve one fluid zone; returns u, v, p (+ k, eps, mu_t for "k_epsilon").
 
-    Returns a dict with the converged u, v, p fields and convergence history.
-    With "k_epsilon", also includes converged k, eps, mu_t.
+    turbulence_model: None = laminar; "k_epsilon" = standard k-epsilon; or a
+    callable(u, mesh, rho, mu_molecular) -> (mu_eff, mu_t), e.g.
+    eddy_viscosity.mixing_length_viscosity.
     """
     Nr, Nz = mesh.Nr, mesh.Nz
     Dh = mesh.Dh                     # hydraulic diameter (pipe or annulus)

@@ -10,6 +10,7 @@ from nanofluid_hx.plotting import plot_temperature_field, save_figure
 
 def run_case(parallel_flow=True, model="simplec_k_epsilon", Re=30000, phi=0.05,
              max_outer_iter=300):
+    """Solve one case end-to-end; returns (mesh, T_field)."""
     print(f"----- Running: {'Parallel' if parallel_flow else 'Counter'} flow "
           f"(model={model}, Re={Re:.0f}, phi={phi}) -----")
 
@@ -42,7 +43,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Single-case HX simulation")
     parser.add_argument("--model", default="simplec_k_epsilon",
-                        choices=["simplec_k_epsilon", "mixing_length"])
+                        choices=["simplec_k_epsilon"])
     parser.add_argument("--Re", type=float, default=30000)
     parser.add_argument("--phi", type=float, default=0.05)
     parser.add_argument("--counter", action="store_true",

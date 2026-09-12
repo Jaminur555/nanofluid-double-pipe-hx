@@ -1,8 +1,4 @@
-"""
-Prandtl mixing-length eddy viscosity from the SOLVED axial-velocity field's
-radial gradient (Stage 1's placeholder closure -- the real k-eps model is
-k_epsilon.py). Annulus-aware: distances to both walls.
-"""
+"""Prandtl mixing-length eddy viscosity from the solved u field's radial gradient."""
 import numpy as np
 
 KAPPA  = 0.41

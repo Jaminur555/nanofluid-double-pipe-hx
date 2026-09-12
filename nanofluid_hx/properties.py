@@ -17,13 +17,13 @@ class MaterialProperties:
 
 
     def __init__(self, phi: float):
-        """ Phi: Volume fraction of Nano-particles (0.0 - 0.10)"""
+        """ Phi: Volume fraction of nanoparticles (0.0 - 0.10)."""
         if not(0.0 <= phi <= 0.10):
             raise ValueError("Volume fraction must be between 0.0 and 0.10")
 
         self.phi = phi
 
-        # Calculate nanofluid properties
+        # Nanofluid properties (Bahmani et al. correlations)
         self.rho_nf = self.calc_density()
         self.cp_nf  = self.calc_specific_heat()
         self.mu_nf     = self.calc_viscosity()
@@ -46,7 +46,6 @@ class MaterialProperties:
     def calc_conductivity(self) -> float:
         k_r = 4.97 * (self.phi ** 2) + 2.72 * self.phi + 1.0
         return k_r * self.k_f
-        
 
 if __name__ == "__main__":
     phi = 0.05

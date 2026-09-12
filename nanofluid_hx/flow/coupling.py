@@ -1,26 +1,17 @@
 """Stage 3c flow -> energy coupling: SIMPLEC + k-epsilon provider.
 
-Runs the real Stage 1/2 SIMPLEC solver on node-identical sub-meshes built
-from the thermal mesh's OWN faces (StaggeredPipeMesh.from_faces) -- the
-staggered u-nodes land exactly on the thermal z-faces, so the thermal solver
-consumes the flow fields with ZERO interpolation.
-
-Exposed fields (what ThermalSolver reads):
-    u_face (Nr, Nz+1)  staggered axial velocity on the thermal z-faces
-    mu_t   (Nr, Nz)    dynamic eddy viscosity [Pa s]
-    k_eff  (Nr, Nz)    effective conductivity: k + cp*mu_t/Pr_t per zone
-                       (steel wall rows: k_s; eddy terms zero)
-
-Fields are ARRANGEMENT-AGNOSTIC: always parallel orientation (every stream
-+z, entrance at z = 0). There is deliberately no parallel_flow argument and
-no orientation method -- counterflow is handled by
-ThermalSolver.assemble_system(), which reverses the annulus z-columns.
+Runs SIMPLEC on node-identical sub-meshes built from the thermal mesh's OWN
+faces, so the staggered u-nodes land exactly on the thermal z-faces and the
+thermal solver consumes the flow fields with ZERO interpolation. Fields are
+ARRANGEMENT-AGNOSTIC (always parallel orientation); counterflow is handled by
+ThermalSolver.assemble_system().
 """
 
 import numpy as np
 
 from .staggered_mesh import StaggeredPipeMesh
 from .simple_solver import run_simplec
+from .wall_function import thermal_wall_h
 
 
 class SimplecFlow:
@@ -48,7 +39,7 @@ class SimplecFlow:
         self.i1, self.i2 = i1, i2
 
         # Node-identical sub-meshes: the staggered grids ARE slices of the
-        # thermal mesh faces (inner pipe 0..r1, annulus r2..r3).
+        # thermal mesh faces (inner pipe 0..r1, annulus r2..r3)
         self.pipe_mesh = StaggeredPipeMesh.from_faces(
             mesh.r_faces[:i1 + 1], mesh.z_faces, south_is_wall=False)
         self.annulus_mesh = StaggeredPipeMesh.from_faces(
@@ -84,13 +75,13 @@ class SimplecFlow:
         i1, i2 = self.i1, self.i2
         Pr_t = self.Pr_t
 
-        # Staggered u (Nr_zone, Nz+1) maps 1:1 onto thermal rows/faces.
+        # Staggered u (Nr_zone, Nz+1) maps 1:1 onto thermal rows/faces;
+        # wall rows i1:i2 stay 0 (solid)
         u_face = np.zeros((Nr, Nz + 1))
         u_face[:i1, :] = self.result_inner["u"]
-        # wall rows i1:i2 stay 0 (solid)
         u_face[i2:, :] = self.result_outer["u"]
 
-        # Dynamic eddy viscosity [Pa s]; laminar runs have no mu_t.
+        # Dynamic eddy viscosity [Pa s]; laminar runs have no mu_t
         mu_t = np.zeros((Nr, Nz))
         mu_t[:i1, :] = self.result_inner.get("mu_t", 0.0)
         mu_t[i2:, :] = self.result_outer.get("mu_t", 0.0)
@@ -108,12 +99,32 @@ class SimplecFlow:
         self.mu_t   = mu_t
         self.k_eff  = k_eff
 
+        # Thermal wall-function film coefficients at the fluid-solid walls
+        # (turbulent runs only; laminar runs keep the plain conduction
+        # operator). Per thermal column j [W/m2 K]. u_tau comes from the same
+        # log law the momentum equation used, so h is arrangement-agnostic.
+        if "mu_t" in self.result_inner and "mu_t" in self.result_outer:
+            yP_r1 = mesh.r_faces[i1] - mesh.r_center[i1 - 1]   # pipe north wall
+            Pr_nf = self.pi.cp_nf * self.pi.mu_nf / self.pi.k_nf
+            h_r1 = thermal_wall_h(self.result_inner["u"][-1, :], yP_r1,
+                                  self.pi.rho_nf, self.pi.mu_nf,
+                                  self.pi.cp_nf, Pr_nf, Pr_t)
+
+            yP_r2 = mesh.r_center[i2] - mesh.r_faces[i2]       # annulus south wall
+            Pr_f = self.po.cp_f * self.po.mu_f / self.po.k_f
+            h_r2 = thermal_wall_h(self.result_outer["u"][0, :], yP_r2,
+                                  self.po.rho_f, self.po.mu_f,
+                                  self.po.cp_f, Pr_f, Pr_t)
+
+            self.wall_h = {"r1": h_r1, "r2": h_r2}
+        else:
+            self.wall_h = None
+
         # Backward compatibility: developed outlet column as a 1-D profile
         self.u = u_face[:, -1].copy()
 
-        # ---- Diagnostics (parallel orientation; consumers orient) ----
-        # Radial velocity on the global r-faces: pipe covers faces 0..i1,
-        # annulus covers faces i2..Nr; faces inside the wall stay 0.
+        # Diagnostics (parallel orientation; consumers orient): radial
+        # velocity on the global r-faces (wall-gap faces stay 0)
         v = np.zeros((Nr + 1, Nz))
         v[:i1 + 1, :] = self.result_inner["v"]
         v[i2:, :]     = self.result_outer["v"]

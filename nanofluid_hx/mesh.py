@@ -34,16 +34,14 @@ def two_sided_mirrored(start, end, n, power):
 class AxisymmetricMesh:
     def __init__(self, Nr_inner = 15, Nr_wall = 5, Nr_outer = 16, Nz = 150, L = 2):
         """
-        Generates a non-uniform 2D axissymmetric cylinder mesh.
+        Non-uniform 2D axisymmetric mesh of the double-pipe HX cross-section.
 
-        Nr_inner: Number of radial grid cells in inner fluid (0-13) mm
-        Nr_wall : Number of radial grid cells in steel wall (13-15) mm
-        Nr_outer: Number of radial grid cells in outer fluid (15-25) mm
-        Nz      : Number of axial grid cells along (L = 2 meters)
+        Nr_inner / Nr_wall / Nr_outer: radial cells in inner fluid (0-13 mm),
+        steel wall (13-15 mm), outer fluid (15-25 mm); Nz: axial cells over L.
 
-        Grading targets equilibrium wall functions: the wall-adjacent FLUID
-        cells are the largest in their zone (first cell-center y+ ~ 16-140
-        over Re 1e4-1e5), never sublayer-sized.
+        Grading targets equilibrium wall functions: wall-adjacent FLUID cells
+        are the largest in their zone (first cell-center y+ ~ 16-140 over
+        Re 1e4-1e5), never sublayer-sized.
         """
         self.Nr_inner = Nr_inner
         self.Nr_wall  = Nr_wall
@@ -52,51 +50,46 @@ class AxisymmetricMesh:
         self.Nr       = Nr_inner + Nr_wall + Nr_outer
         self.L        = L
 
-        # Physical Boundaries (in meters)
+        # Physical boundaries [m]
         self.r0 = 0.0
         self.r1 = 0.013    # Inner fluid interface
         self.r2 = 0.015    # Outer fluid interface
         self.r3 = 0.025    # Outer pipe wall
 
-        # Generate Non-Unifrom Radial Coordinates (r_faces)
         self.r_faces = self.generate_radial_faces()
-
-        # Generate Uniform Axial Coordinates (z_faces)
         self.z_faces = np.linspace(0.0, self.L, self.Nz + 1)
 
-        # Calculate Cell Centers
         self.r_center = (self.r_faces[:-1] + self.r_faces[1:]) * 0.5
         self.z_center = (self.z_faces[:-1] + self.z_faces[1:]) * 0.5
 
-        # Generate Cell Volumes and Faces Area
-        self.V   = np.zeros((self.Nr, self.Nz))
-        self.A_e = np.zeros((self.Nr, self.Nz))    # East face (constant - z, right side)
-        self.A_w = np.zeros((self.Nr, self.Nz))    # West face (consta-z, left side)
-        self.A_n = np.zeros((self.Nr, self.Nz))    # North face (Constant-r, outer cylinder)
-        self.A_s = np.zeros((self.Nr, self.Nz))    # Sounth face (constant-r, inner cylinder)
+        r_s, r_n = self.r_faces[:-1], self.r_faces[1:]
+        dz = self.z_faces[1:] - self.z_faces[:-1]
+        annular = np.pi * (r_n ** 2 - r_s ** 2)
+        self.V   = annular[:, None] * dz[None, :]
+        self.A_e = annular[:, None] * np.ones_like(dz)[None, :]
+        self.A_w = annular[:, None] * np.ones_like(dz)[None, :]
+        self.A_n = 2.0 * np.pi * r_n[:, None] * dz[None, :]
+        self.A_s = 2.0 * np.pi * r_s[:, None] * dz[None, :]
 
-
-        self.calculate_geometry()
         self.identity_zone()
 
     def generate_radial_faces(self):
         """Graded mesh sized for wall functions at every wall (r1, r2, r3)."""
-
-        # Inner Fluid: fine at the axis, coarse at the wall r1 (wall functions
+        # Inner fluid: fine at the axis, coarse at the wall r1 (wall functions
         # want the first cell CENTER in the log layer, i.e. not sublayer-fine)
         inner = one_sided_power(self.r0, self.r1, self.Nr_inner, 1.6)
 
-        # Steel Wall: Thin (2mm), uniform spacing is sufficient
+        # Steel wall: thin (2 mm), uniform spacing is sufficient
         wall = np.linspace(self.r1, self.r2, self.Nr_wall + 1)
 
-        # Outer Fluid: two-sided -- coarse at BOTH walls (r2 and r3), fine at
-        # the mid-gap (the 3a/3b mesh study: one-sided grading put the outer
-        # wall first cell at y+ ~ 8, invalid for equilibrium wall functions)
+        # Outer fluid: two-sided -- coarse at BOTH walls (r2, r3); one-sided
+        # grading put the outer wall first cell at y+ ~ 8, invalid for
+        # equilibrium wall functions
         outer = two_sided_mirrored(self.r2, self.r3, self.Nr_outer, 0.7)
 
         faces = np.concatenate([inner, wall[1:], outer[1:]])
 
-        # --- grading sanity guards (cheap, fail fast on bad parameters) ---
+        # grading sanity guards (cheap, fail fast on bad parameters)
         dr = np.diff(faces)
         assert np.all(dr > 0.0), "radial faces must be strictly increasing"
         i1 = self.Nr_inner
@@ -105,34 +98,12 @@ class AxisymmetricMesh:
         assert dr[i2:].max() == max(dr[i2], dr[-1]), "annulus wall cells should be the zone's largest"
         return faces
 
-
-    def calculate_geometry(self):
-        """Calculate FVM geometry metrics for every cylindrical control volume"""
-
-        for i in range(self.Nr):
-            r_s = self.r_faces[i]     # South radius (inner)
-            r_n = self.r_faces [i+1]  # North radius (outer)
-
-            for j in range(self.Nz):
-                z_w = self.z_faces[j]   # West position
-                z_e = self.z_faces[j+1] # East position
-                dz  = z_e - z_w
-
-                # FVM Geometric formulas in axisymmetric coordinates
-                self.V[i, j]   = np.pi * (r_n ** 2 - r_s ** 2) * dz
-                self.A_e[i, j] = np.pi * (r_n ** 2 - r_s ** 2)
-                self.A_w[i, j] = np.pi * (r_n ** 2 - r_s ** 2)
-                self.A_n[i, j] = 2.0 * np.pi * r_n * dz
-                self.A_s[i, j] = 2.0 * np.pi * r_s * dz
-
-
     def identity_zone(self):
-        """Maps each cell index to its material zone (inner fluid, wall, or outer fluid)"""
+        """Map each radial cell to its zone: 0 = inner fluid, 1 = steel, 2 = outer."""
         self.zone_map = np.zeros(self.Nr, dtype = int)
-
-        self.zone_map[0:self.Nr_inner] = 0                             # 0 = Inner Fluid
-        self.zone_map[self.Nr_inner: self.Nr_inner + self.Nr_wall] = 1 # 1 = Solid Steel wall
-        self.zone_map[self.Nr_inner + self.Nr_wall :] = 2              # 2 = outer Fluid
+        self.zone_map[0:self.Nr_inner] = 0
+        self.zone_map[self.Nr_inner: self.Nr_inner + self.Nr_wall] = 1
+        self.zone_map[self.Nr_inner + self.Nr_wall :] = 2
 
 
 # Verification test script
