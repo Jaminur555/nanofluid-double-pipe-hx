@@ -5,6 +5,8 @@ so ONE flow solve per (Re, phi) feeds both the parallel and counter thermal
 solves.
 """
 import argparse
+import csv
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 
@@ -65,6 +67,7 @@ if __name__ == "__main__":
         'parallel': {phi: {'Re': [], 'Nu': [], 'eff': []} for phi in phi_list},
         'counter':  {phi: {'Re': [], 'Nu': [], 'eff': []} for phi in phi_list}
     }
+    rows = []                                     # CSV dump rows (Re, phi, Nu, eff)
 
     for phi in phi_list:
         for Re in Re_list:
@@ -75,9 +78,25 @@ if __name__ == "__main__":
                 result[flow_type][phi]['Re'].append(Re)
                 result[flow_type][phi]['Nu'].append(Nu)
                 result[flow_type][phi]['eff'].append(eff)
+            rows.append({'Re': Re, 'phi': phi,
+                         'Nu_par': result['parallel'][phi]['Nu'][-1],
+                         'Nu_ctr': result['counter'][phi]['Nu'][-1],
+                         'eff_par': result['parallel'][phi]['eff'][-1],
+                         'eff_ctr': result['counter'][phi]['eff'][-1]})
             print(f"done: model={args.model} Re={Re} phi={phi} "
                   f"Nu_par={result['parallel'][phi]['Nu'][-1]:.2f} "
                   f"Nu_ctr={result['counter'][phi]['Nu'][-1]:.2f}")
+
+    csv_path = Path("results") / (
+        f"sweep_nu_effectiveness_{args.model}" + ("_smoke" if args.smoke else "")
+        + ".csv")
+    csv_path.parent.mkdir(exist_ok=True)
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=['Re', 'phi', 'Nu_par', 'Nu_ctr',
+                                               'eff_par', 'eff_ctr'])
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"CSV saved: {csv_path}")
 
     fig, ax = plt.subplots(2, 2, figsize=(14, 10))
 
