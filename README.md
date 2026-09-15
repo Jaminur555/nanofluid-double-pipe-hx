@@ -2,7 +2,8 @@
 
 2D axisymmetric finite-volume solver for turbulent Al<sub>2</sub>O<sub>3</sub>-water
 nanofluid flow in a double-pipe heat exchanger (parallel & counter flow).
-Replicates Bahmani et al. (2018), *Advanced Powder Technology* 29(2), 273-282.
+Geometry and operating range after Bahmani et al. (2018); validation against
+the experimental correlations of Pak&ndash;Cho (1998) and Dittus&ndash;Boelter.
 
 ## Physics
 - Three zones: inner nanofluid pipe (0-13 mm), steel wall (13-15 mm), water annulus (15-25 mm)
@@ -14,17 +15,23 @@ Replicates Bahmani et al. (2018), *Advanced Powder Technology* 29(2), 273-282.
 - Thermal wall functions (Jayatilleke T<sup>+</sup>) at the fluid&ndash;solid faces: the
   viscous-sublayer film resistance is included instead of stretching the near-wall eddy
   conductivity to the wall
-- Outputs: temperature field, wall Nusselt (paper Eqs. 14&ndash;16), LMTD, overall U, effectiveness
+- Entropy generation (EGM): local S&prime;&prime;&prime;<sub>gen</sub> from the solver's own
+  k<sub>eff</sub>/&mu;<sub>eff</sub> fields (Bejan), zone integrals and Bejan number
+- Outputs: temperature field, wall Nusselt, LMTD, overall U, effectiveness, S<sub>gen</sub>,
+  pressure drop
 
 ## Structure
 ```
 nanofluid_hx/
     flow/           SIMPLEC + k-epsilon flow solver, wall functions, SimplecFlow coupling
     turbulence/     model registry (get_model)
-    ...             properties, mesh, solver, postprocessing, plotting
-scripts/            run_single_case.py, run_parameter_sweep.py, run_stage1_pipe_validation.py
-tests/              pytest suite (mesh, properties, energy balance, SIMPLEC, k-epsilon, wall functions)
-results/            generated figures
+    ...             properties, mesh, solver, postprocessing, correlations,
+                    entropy generation, plotting
+scripts/            run_single_case.py, run_parameter_sweep.py, run_stage1_pipe_validation.py,
+                    validate_correlations.py, grid_independence.py, yplus_probe.py, analyze_egm.py
+tests/              pytest suite (mesh, properties, energy balance, SIMPLEC, k-epsilon,
+                    wall functions, correlations, entropy generation)
+results/            generated figures and CSVs
 docs/               references
 ```
 
@@ -36,7 +43,11 @@ pip install -e .
 ## Usage
 ```bash
 python scripts/run_single_case.py        # both flow arrangements, saves contours
-python scripts/run_parameter_sweep.py    # 6 Re x 5 phi x 2 arrangements, Nu & effectiveness
+python scripts/run_parameter_sweep.py    # 6 Re x 5 phi x 2 arrangements; Nu, effectiveness,
+                                         # entropy generation, pressure drop -> CSV + figure
+python scripts/validate_correlations.py  # parity vs Pak-Cho / Dittus-Boelter
+python scripts/grid_independence.py      # Nr x Nz mesh study at 3 operating points
+python scripts/analyze_egm.py            # EGM summary, PEC, optimum phi at fixed pumping power
 pytest                                   # run the test suite
 ```
 
@@ -53,13 +64,38 @@ Re 1e4, &phi; = 0 the solver lands within 0.4% of Dittus&ndash;Boelter:
 
 ![Parameter sweep](results/sweep_nu_effectiveness_simplec_k_epsilon.png)
 
+Validation against experimental correlations: mean |deviation| 9.7% vs
+Pak&ndash;Cho over the full 30-point sweep (nanofluid experimental scatter band),
+5.4% vs Dittus&ndash;Boelter:
+
+![Correlation validation](results/validation_correlations.png)
+
+Grid independence at three operating corners (&le;0.83% vs finest valid grid);
+grids whose first cell falls at the wall-function y<sup>+</sup> switch (y<sup>+</sup> &asymp; 11.6,
+Re 1e4) are excluded as outside wall-function validity &mdash; see
+`scripts/yplus_probe.py`:
+
+![Grid independence](results/grid_independence.png)
+
+Entropy generation and performance evaluation: S<sub>gen</sub> rises with Re and &phi;;
+Bejan number &asymp; 1 everywhere (heat-transfer irreversibility dominates, friction
+share &lt; 1%). PEC &lt; 1 at all conditions and &phi;\* = 0 at fixed pumping power
+&mdash; the equal-Re Nu enhancement (+13&ndash;20%) does not survive the viscosity-driven
+pumping penalty:
+
+![EGM/PEC analysis](results/egm_analysis.png)
+
 ## Roadmap
 - [x] SIMPLEC pressure-velocity coupling (`nanofluid_hx/flow/`)
 - [x] k-&epsilon; turbulence model with wall functions (`nanofluid_hx/flow/k_epsilon.py`)
 - [x] Couple solved flow field into the double-pipe thermal solver (Stage 3)
 - [x] Thermal wall functions at the fluid&ndash;solid faces
-- [ ] Validation vs. digitized Bahmani et al. figures (Stage 4)
+- [x] Validation vs experimental correlations (Pak&ndash;Cho, Dittus&ndash;Boelter)
+- [x] Grid independence study with y<sup>+</sup> validity analysis
+- [x] Entropy generation (EGM) and PEC / fixed-pumping-power analysis
+- [ ] Publication-quality figures and journal paper
 - [ ] Temperature-dependent properties (beyond paper scope)
+- [ ] ML surrogate model (deferred)
 
 ## References
 See [docs/reference.md](docs/reference.md).

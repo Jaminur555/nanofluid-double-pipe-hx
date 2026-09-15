@@ -1,17 +1,9 @@
 """Grid independence study (paper Step 0.2): Nu_nf and effectiveness vs mesh.
 
-Radial: Nr_inner in {12, 15, 18, 21} with Nr_outer scaled proportionally
-(round(Nr_inner * 16/15) = 13/16/19/22) and Nr_wall fixed at 5 (conduction-only
-steel wall). Axial: Nz in {40, 60, 90}. The production default mesh
-(15/5/16/150) is also run and shown as the 'production' point at Nz=150.
-
-Operating points cover the demanding corners of the sweep:
-(Re, phi) = (1e4, 0.0), (3e4, 0.05), (1e5, 0.1). Parallel arrangement
-(counter Nu differs by <0.2%). One flow solve per (mesh, point); deviations
-are reported against the FINEST grid (Nr_inner=21, Nz=90).
-
-Outputs: results/grid_independence.csv, results/grid_independence.png,
-console deviation tables.
+Nr_inner {12,15,18,21} (Nr_outer scaled 16/15, Nr_wall=5), Nz {40,60,90},
+plus the production default 15/5/16/150. Points (Re,phi): (1e4,0),
+(3e4,0.05), (1e5,0.1), parallel side; deviations vs finest grid (21, 90).
+Outputs: results/grid_independence.{csv,png} + console tables.
 """
 import argparse
 import csv
@@ -42,7 +34,7 @@ def main(max_iter):
             mesh = AxisymmetricMesh(Nr_inner=nri, Nr_wall=5, Nr_outer=nro, Nz=nz)
             fd = make_provider("simplec_k_epsilon", mesh, phi, Re,
                                max_outer_iter=max_iter)
-            Nu, eff = analyze_case(fd, parallel_flow=True)
+            Nu, eff, *_ = analyze_case(fd, parallel_flow=True)
             rows.append({"Re": Re, "phi": phi, "Nr_inner": nri, "Nr_outer": nro,
                          "Nz": nz, "Nu": Nu, "eff": eff,
                          "it_inner": fd.iterations["inner"],

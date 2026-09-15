@@ -1,13 +1,8 @@
-"""Validate CFD Nu_nf against experimental correlations (paper Step 0.3').
+"""Validate CFD Nu_nf vs Pak-Cho and Dittus-Boelter (paper Step 0.3').
 
-Reads the sweep CSV written by run_parameter_sweep.py, prints a per-phi
-mean-|deviation| table for Pak-Cho, Maiga and Dittus-Boelter, and saves the
-parity figure results/validation_correlations.png.
-
-Deviation convention: dev% = (Nu_CFD - Nu_corr) / Nu_corr * 100 (Nu_par side;
-Nu_ctr differs by <0.2%). Acceptance (agreed): mean |dev| <= 15-20% vs Pak-Cho
-- nanofluid experimental scatter. Caveat: Pak-Cho was fitted for phi <= 3 vol%;
-phi = 7.5-10% points are ITS extrapolation, not a solver fault.
+Reads the sweep CSV, prints per-phi mean-|dev|% tables, saves the parity
+figure results/validation_correlations.png.
+dev% = (Nu_CFD - Nu_corr) / Nu_corr * 100 (Nu_par side).
 """
 import argparse
 import csv

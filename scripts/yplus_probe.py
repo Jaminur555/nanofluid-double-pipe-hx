@@ -1,10 +1,7 @@
-"""Y+ probe for the grid-independence anomaly (paper Step 0.2 diagnostic).
+"""Y+ probe for the grid-independence anomaly (Step 0.2 diagnostic).
 
-Reproduces EXACTLY the wall-function inputs the solver uses at the hot wall
-(r1, pipe north wall) and the annulus south wall (r2): the same near-wall
-u row, the same y_P (cell-center to wall), the same log-law Newton solve.
-Prints y+ statistics per grid so the wall-function validity band
-(y+ >= ~25-30 for equilibrium log-law WFs) can be checked per (grid, Re).
+Uses the solver's own wall-function inputs (near-wall u row, y_P, log-law
+Newton solve) at r1/r2; prints per-(grid, Re) y+ statistics.
 """
 import argparse
 import sys
