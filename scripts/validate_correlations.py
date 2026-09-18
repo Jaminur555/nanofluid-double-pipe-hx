@@ -10,11 +10,12 @@ import csv
 import matplotlib.pyplot as plt
 
 from nanofluid_hx import MaterialProperties
-from nanofluid_hx.correlations import dittus_boelter, pak_cho
+from nanofluid_hx.correlations import dittus_boelter, pak_cho, xuan_li
 from nanofluid_hx.plotting import save_figure
 
 # Experimental correlations only - Maiga (CFD-derived) is excluded by design.
-MODELS = {"Pak-Cho": pak_cho, "Dittus-Boelter": dittus_boelter}
+MODELS = {"Pak-Cho": pak_cho, "Xuan-Li": xuan_li,
+          "Dittus-Boelter": dittus_boelter}
 
 
 def load_rows(csv_path):
@@ -60,7 +61,7 @@ def main(csv_path):
 
     # Parity figure: CFD Nu vs correlation Nu on equal log-log axes
     fig, ax = plt.subplots(figsize=(7.5, 7.5))
-    colors = {"Pak-Cho": "blue", "Dittus-Boelter": "green"}
+    colors = {"Pak-Cho": "blue", "Xuan-Li": "red", "Dittus-Boelter": "green"}
     markers = {phi: marker for phi, marker in
                zip(phi_list, ["o", "s", "^", "D", "v"])}
     lo = min(min(r["Nu_par"] for r in rows),

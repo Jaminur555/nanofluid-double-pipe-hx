@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from nanofluid_hx import AxisymmetricMesh, MaterialProperties, ThermalSolver
+from nanofluid_hx.properties import PARTICLES
 from nanofluid_hx.turbulence import get_model
 from nanofluid_hx.postprocessing import evaluate_case
 from nanofluid_hx.entropy_generation import (from_case,
@@ -19,9 +20,12 @@ from nanofluid_hx.entropy_generation import (from_case,
 from nanofluid_hx.plotting import save_figure
 
 
-def make_provider(model, mesh, phi, Re, max_outer_iter=300):
+def make_provider(model, mesh, phi, Re, max_outer_iter=300,
+                  particle="al2o3", mu_model="bahmani", k_model="bahmani",
+                  cp_model="volume"):
     """One flow solve for one (Re, phi); warn (not fail) on non-convergence."""
-    pi = MaterialProperties(phi=phi)
+    pi = MaterialProperties(phi=phi, particle=particle, mu_model=mu_model,
+                            k_model=k_model, cp_model=cp_model)
     po = MaterialProperties(phi=0.0)
 
     try:
@@ -72,7 +76,20 @@ if __name__ == "__main__":
                         help="1x1 subset (Re=30000, phi=0.05) for a quick check")
     parser.add_argument("--max-iter", type=int, default=300,
                         help="SIMPLEC outer iterations (bump to 500 at high Re)")
+    parser.add_argument("--particle", default="al2o3", choices=sorted(PARTICLES))
+    parser.add_argument("--mu-model", default="bahmani",
+                        choices=["bahmani", "brinkman", "batchelor", "corcione"])
+    parser.add_argument("--k-model", default="bahmani",
+                        choices=["bahmani", "maxwell", "corcione"])
+    parser.add_argument("--cp-model", default="volume",
+                        choices=["volume", "mixture"])
     args = parser.parse_args()
+
+    default_combo = (args.particle == "al2o3" and args.mu_model == "bahmani"
+                     and args.k_model == "bahmani"
+                     and args.cp_model == "volume")
+    tag = "" if default_combo else f"_{args.particle}_{args.k_model}_{args.mu_model}"
+    particle_label = {"al2o3": "Al$_2$O$_3$", "cuo": "CuO", "cu": "Cu"}
 
     Re_list  = [30000] if args.smoke else [10000, 20000, 40000, 60000, 80000,
                                             100000]
@@ -89,7 +106,11 @@ if __name__ == "__main__":
     for phi in phi_list:
         for Re in Re_list:
             fd = make_provider(args.model, mesh, phi, Re,
-                               max_outer_iter=args.max_iter)
+                               max_outer_iter=args.max_iter,
+                               particle=args.particle,
+                               mu_model=args.mu_model,
+                               k_model=args.k_model,
+                               cp_model=args.cp_model)
             dp_in, dp_ann, u_in, u_ann = flow_diagnostics(fd)
             row = {'Re': Re, 'phi': phi,
                    'dP_pipe': dp_in, 'dP_ann': dp_ann,
@@ -104,14 +125,15 @@ if __name__ == "__main__":
                             f'S_ht_{sfx}': S_ht, f'S_ff_{sfx}': S_ff,
                             f'S_{sfx}': S, f'Be_{sfx}': Be})
             rows.append(row)
-            print(f"done: model={args.model} Re={Re} phi={phi} "
+            print(f"done: combo={args.particle}/{args.k_model}/{args.mu_model}"
+                  f"/{args.cp_model} Re={Re} phi={phi} "
                   f"Nu_par={row['Nu_par']:.2f} Nu_ctr={row['Nu_ctr']:.2f} "
                   f"S_par={row['S_par']:.2f} S_ctr={row['S_ctr']:.2f} "
                   f"dP={dp_in:.0f}/{dp_ann:.0f} Pa")
 
     csv_path = Path("results") / (
-        f"sweep_nu_effectiveness_{args.model}" + ("_smoke" if args.smoke else "")
-        + ".csv")
+        f"sweep_nu_effectiveness_{args.model}{tag}"
+        + ("_smoke" if args.smoke else "") + ".csv")
     csv_path.parent.mkdir(exist_ok=True)
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
@@ -162,10 +184,11 @@ if __name__ == "__main__":
     ax[1, 1].grid(True)
     ax[1, 1].legend()
 
-    fig.suptitle(f"Al$_2$O$_3$-Water Nanofluid — Effect of Reynolds Number and "
-                 f"Volume Fraction (flow model: {args.model})",
+    fig.suptitle(f"{particle_label[args.particle]}-Water Nanofluid — Effect of "
+                 f"Reynolds Number and Volume Fraction (flow model: "
+                 f"{args.model}{', ' + tag[1:] if tag else ''})",
                  fontsize=15, fontweight="bold")
     plt.tight_layout(rect=(0, 0, 1, 0.94))
-    save_figure(fig, f"sweep_nu_effectiveness_{args.model}"
+    save_figure(fig, f"sweep_nu_effectiveness_{args.model}{tag}"
                      + ("_smoke" if args.smoke else ""))
     plt.show()

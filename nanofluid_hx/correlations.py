@@ -8,6 +8,9 @@ nanofluid Prandtl number Pr_nf = mu_nf * cp_nf / k_nf from MaterialProperties
 References:
 - Pak, B.-C., Cho, Y.-I. (1998), Exp. Heat Transfer 11(2), 151-170:
   Nu = 0.021 Re^0.8 Pr^0.5 (turbulent, fitted for phi <= 3 vol%)
+- Xuan, Y., Li, Q. (2003), J. Heat Transfer 125(1), 151-155:
+  Nu = 0.0059 (1 + 7.6286 phi^0.6886 Pe_d^0.001) Re^0.9238 Pr^0.4
+  (experimental, fitted to Cu-water d_p = 100 nm; secondary reference)
 - Dittus-Boelter (heating): Nu = 0.023 Re^0.8 Pr^0.4 (pure-water baseline)
 
 Maiga et al. (2006) is deliberately EXCLUDED from validation: it is derived
@@ -35,3 +38,23 @@ def pak_cho(Re: float, props) -> float:
     """
     Pr = prandtl(props)
     return 0.021 * Re**0.8 * Pr**0.5
+
+
+# Xuan-Li reference constants: pipe hydraulic diameter (solver 2*r1) and
+# their Cu particle diameter
+D_PIPE = 0.026
+D_P_XUAN_LI = 100e-9
+
+
+def xuan_li(Re: float, props) -> float:
+    """Xuan-Li (2003): Nu = 0.0059(1+7.6286 phi^0.6886 Pe_d^0.001) Re^0.9238 Pr^0.4.
+
+    Experimental Cu-water fit (d_p = 100 nm); the Pe_d^0.001 term is nearly
+    inert, so deviations mainly reflect the particle-material mismatch.
+    """
+    Pr = prandtl(props)
+    alpha = props.k_nf / (props.rho_nf * props.cp_nf)
+    u_m = Re * props.mu_nf / (props.rho_nf * D_PIPE)
+    pe_d = u_m * D_P_XUAN_LI / alpha
+    return (0.0059 * (1.0 + 7.6286 * props.phi**0.6886 * pe_d**0.001)
+            * Re**0.9238 * Pr**0.4)

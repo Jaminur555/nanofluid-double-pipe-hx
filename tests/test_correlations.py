@@ -2,7 +2,8 @@
 import pytest
 
 from nanofluid_hx.properties import MaterialProperties
-from nanofluid_hx.correlations import prandtl, dittus_boelter, pak_cho
+from nanofluid_hx.correlations import (prandtl, dittus_boelter, pak_cho,
+                                       xuan_li)
 
 
 @pytest.fixture(scope="module")
@@ -28,3 +29,16 @@ def test_nusselt_rises_with_phi():
     # qualitative trend as the CFD Nu_nf sweep
     Re = 3.0e4
     assert pak_cho(Re, MaterialProperties(0.1)) > pak_cho(Re, MaterialProperties(0.0))
+
+
+def test_xuan_li_phi_zero_form(water):
+    # phi=0 kills the bracket => Nu = 0.0059 Re^0.9238 Pr^0.4 exactly
+    Re = 3.0e4
+    expected = 0.0059 * Re**0.9238 * prandtl(water)**0.4
+    assert xuan_li(Re, water) == pytest.approx(expected, rel=1e-12)
+
+
+def test_xuan_li_rises_with_re_and_phi():
+    p0, p1 = MaterialProperties(0.0), MaterialProperties(0.05)
+    assert xuan_li(6.0e4, p0) > xuan_li(1.0e4, p0)
+    assert xuan_li(3.0e4, p1) > xuan_li(3.0e4, p0)

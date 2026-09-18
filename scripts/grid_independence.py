@@ -23,17 +23,22 @@ NZ_LIST = [40, 60, 90]
 POINTS = [(1.0e4, 0.0), (3.0e4, 0.05), (1.0e5, 0.1)]
 
 
-def main(max_iter):
+def main(max_iter, particle="al2o3", mu_model="bahmani", k_model="bahmani"):
     grids = [(nri, round(nri * 16 / 15), nz)          # (Nr_inner, Nr_outer, Nz)
              for nri in NR_INNER for nz in NZ_LIST]
     grids.append((15, 16, 150))                        # production default
+
+    default_combo = (particle == "al2o3" and mu_model == "bahmani"
+                     and k_model == "bahmani")
+    tag = "" if default_combo else f"_{particle}_{k_model}_{mu_model}"
 
     rows = []
     for Re, phi in POINTS:
         for nri, nro, nz in grids:
             mesh = AxisymmetricMesh(Nr_inner=nri, Nr_wall=5, Nr_outer=nro, Nz=nz)
             fd = make_provider("simplec_k_epsilon", mesh, phi, Re,
-                               max_outer_iter=max_iter)
+                               max_outer_iter=max_iter, particle=particle,
+                               mu_model=mu_model, k_model=k_model)
             Nu, eff, *_ = analyze_case(fd, parallel_flow=True)
             rows.append({"Re": Re, "phi": phi, "Nr_inner": nri, "Nr_outer": nro,
                          "Nz": nz, "Nu": Nu, "eff": eff,
@@ -42,7 +47,7 @@ def main(max_iter):
             print(f"done: Re={Re:.0e} phi={phi} Nr={nri}/{nro} Nz={nz} "
                   f"Nu={Nu:.2f} eff={eff:.4f}", flush=True)
 
-    csv_path = Path("results/grid_independence.csv")
+    csv_path = Path(f"results/grid_independence{tag}.csv")
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
@@ -59,10 +64,10 @@ def main(max_iter):
         for r in sorted(sub, key=lambda r: (r["Nr_inner"], r["Nz"])):
             dnu = 100.0 * (r["Nu"] - ref["Nu"]) / ref["Nu"]
             deff = 100.0 * (r["eff"] - ref["eff"]) / ref["eff"]
-            tag = "  <- production" if (r["Nr_inner"], r["Nz"]) == (15, 150) else ""
+            mark = "  <- production" if (r["Nr_inner"], r["Nz"]) == (15, 150) else ""
             print(f"{r['Nr_inner']:>3}/{r['Nr_outer']:<3} {r['Nz']:>4} | "
                   f"{r['Nu']:>9.2f} {dnu:>+7.2f} | {r['eff']:>8.4f} "
-                  f"{deff:>+7.2f}{tag}")
+                  f"{deff:>+7.2f}{mark}")
 
     # Figure: Nu vs Nz per Nr_inner, one panel per operating point
     fig, axes = plt.subplots(1, len(POINTS), figsize=(5 * len(POINTS), 4.5),
@@ -82,13 +87,19 @@ def main(max_iter):
         ax.grid(True, alpha=0.3)
     axes[0].set_ylabel("Average Nusselt number Nu_nf (-)")
     axes[-1].legend(fontsize=8)
-    fig.suptitle("Grid independence of Nu_nf", fontsize=13, fontweight="bold")
+    fig.suptitle(f"Grid independence of Nu_nf "
+                 f"({particle}/{k_model}/{mu_model})", fontsize=13,
+                 fontweight="bold")
     plt.tight_layout(rect=(0, 0, 1, 0.93))
-    save_figure(fig, "grid_independence")
+    save_figure(fig, f"grid_independence{tag}")
     plt.show()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Grid independence study")
     parser.add_argument("--max-iter", type=int, default=500)
-    main(parser.parse_args().max_iter)
+    parser.add_argument("--particle", default="al2o3")
+    parser.add_argument("--mu-model", default="bahmani")
+    parser.add_argument("--k-model", default="bahmani")
+    a = parser.parse_args()
+    main(a.max_iter, a.particle, a.mu_model, a.k_model)
